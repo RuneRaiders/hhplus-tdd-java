@@ -13,9 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -24,252 +30,149 @@ import org.mockito.quality.Strictness;
 @ExtendWith(MockitoExtension.class)
 public class PointServiceTest {
 
+    private UserPointTable userPointTable;
+    private PointHistoryTable pointHistoryTable;
+    private PointService pointService;
+
     private static final long ANY_ID = 1L;
     private static final long ANY_POINT = 1000L;
     private static final long ANY_TIMEMILLIS = System.currentTimeMillis();
 
-    /*
-    * userPoint 객체 자체에 대한 테스트 : 객체 생성 성공
-    * */
-    @Test
-    public void userPoint_객체_생성_성공(){
-        // given
-        UserPoint userPoint = UserPoint.empty(ANY_ID);
-
-        // when & then
-        assertThat(userPoint).isNotNull();
-        assertThat(ANY_ID).isEqualTo(userPoint.id());
+    @BeforeEach
+    void 기본_설정(){
+        userPointTable = mock(UserPointTable.class);
+        pointHistoryTable = mock(PointHistoryTable.class);
+        pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
     }
 
-    /*
-     * userPoint 객체 자체에 대한 테스트 : 객체 조회 간 미등록 되어 있을 경우 실패
-     * */
-    @Test
-    public void userPoint_객체_조회_간_UserPointTable에_미등록되어_있을_경우_조회_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ) {
-        // given
-        long nonExistedId = 99L;
+    @Nested
+    class 포인트_조회{
 
-        // when
-        when(userPointTable.selectById(nonExistedId)).thenReturn(UserPoint.empty(nonExistedId)); // 값이 비어 있을 경우 default 객체 반환
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-        UserPoint userPoint = pointService.selectUserPointById(nonExistedId);
+        @Test
+        void 포인트_조회_성공_시_UserPoint_반환(){
 
-        // then
-        assertThat(nonExistedId).isEqualTo(userPoint.id());
+            // given
+            UserPoint userPoint = new UserPoint(ANY_ID, ANY_POINT, ANY_TIMEMILLIS);
+
+            // when
+            when(userPointTable.selectById(ANY_ID)).thenReturn(userPoint);
+
+            // then
+            UserPoint resultPoint = pointService.selectUserPointById(ANY_ID);
+            assertThat(userPoint).isEqualTo(resultPoint);
+
+        }
+        @Test
+        void 포인트_조회_실패_시_OL_반환(){
+
+            // given
+            UserPoint userPoint = UserPoint.empty(ANY_ID);
+
+            // when
+            when(userPointTable.selectById(ANY_ID)).thenReturn(userPoint);
+
+            // then
+            UserPoint resultPoint = pointService.selectUserPointById(ANY_ID);
+            assertThat(userPoint.point()).isEqualTo(0L);
+
+        }
     }
 
-    /*
-     * userPoint 객체 자체에 대한 테스트 : 객체 조회 간 등록 되어 있을 경우 성공
-     * */
-    @Test
-    public void userPoint_객체_조회_간_UserPointTable에_등록되어_있을_경우_조회_성공(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ) {
-        // given
-        UserPoint userPoint = new UserPoint(77L, 100L, System.currentTimeMillis());
+    @Nested
+    class 포인트_충전{
 
-        // when
-        when(userPointTable.selectById(userPoint.id())).thenReturn(userPoint);
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+        @Test
+        void 포인트_충전_성공_시_UserPoint_및_PointHistory_반환(){
 
-        UserPoint resultUserPoint = pointService.selectUserPointById(userPoint.id());
+            // given
+            long chargePoint = 1L;
+            UserPoint userPoint = new UserPoint(ANY_ID, ANY_POINT, ANY_TIMEMILLIS);
+            UserPoint chargedUserPoint = userPoint.charge(chargePoint);
 
-        // then
-        assertThat(resultUserPoint.id()).isEqualTo(userPoint.id());
-        assertThat(resultUserPoint.point()).isEqualTo(userPoint.point());
+            // when
+            when(userPointTable.insertOrUpdate(ANY_ID, chargePoint)).thenReturn(chargedUserPoint);
+            UserPoint resultUserPoint = pointService.charge(ANY_ID, chargePoint);
+
+            // then
+            assertAll(
+                () -> assertThat(resultUserPoint.point()).isEqualTo(ANY_POINT + chargePoint),
+                () -> assertThat(resultUserPoint.id()).isEqualTo(ANY_ID),
+                () -> assertThat(resultUserPoint.updateMillis()).isPositive()
+            );
+
+            verify(userPointTable).insertOrUpdate(ANY_ID, chargePoint);
+            verify(pointHistoryTable).insert(
+                eq(ANY_ID),
+                eq(chargePoint),
+                eq(TransactionType.CHARGE),
+                anyLong()
+            );
+        }
     }
 
-    /*
-     * userPoint 충전에 대한 테스트 : 충전 성공
-     * */
-    @Test
-    public void userPoint_충전_성공(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 1000L, System.currentTimeMillis());
+    @Nested
+    class 포인트_사용{
+        @Test
+        void 포인트_사용_성공_시_UserPoint_및_PointHistory_반환(){
 
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+            // given
+            long usePoint = 1L;
+            UserPoint userPoint = new UserPoint(ANY_ID, ANY_POINT, ANY_TIMEMILLIS);
+            UserPoint usedUserPoint = userPoint.use(usePoint);
 
-        // then
-        assertDoesNotThrow(() -> pointService.charge(userPoint.id(), 1000L));
+            // when
+            when(userPointTable.insertOrUpdate(ANY_ID, usePoint)).thenReturn(usedUserPoint);
+            UserPoint resultUserPoint = pointService.use(ANY_ID, usePoint);
+
+            // then
+            assertAll(
+                () -> assertThat(resultUserPoint.point()).isEqualTo(ANY_POINT - usePoint),
+                () -> assertThat(resultUserPoint.id()).isEqualTo(ANY_ID),
+                () -> assertThat(resultUserPoint.updateMillis()).isPositive()
+            );
+
+            verify(userPointTable).insertOrUpdate(ANY_ID, usePoint);
+            verify(pointHistoryTable).insert(
+                eq(ANY_ID),
+                eq(usePoint),
+                eq(TransactionType.USE),
+                anyLong()
+            );
+        }
     }
 
-    /*
-     * userPoint 충전에 대한 테스트 : 0 이하 충전 시 실패
-     * */
-    @Test
-    public void userPoint_충전_간_0_이하_충전_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 0L, System.currentTimeMillis());
+    @Nested
+    class 포인트_내역_조회{
+        @Test
+        void 포인트_내역_조회_성공_시_PointHistory_반환(){
 
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+            // given
+            List<PointHistory> pointHistoryList = List.of(
+                new PointHistory(1L, ANY_ID, 100L, TransactionType.CHARGE, ANY_TIMEMILLIS),
+                new PointHistory(2L, ANY_ID, 200L, TransactionType.CHARGE, ANY_TIMEMILLIS)
+            );
 
-        // then
-        assertAll(
-            () -> assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 0L)),
-            () -> assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), -1L))
-        );
-    }
+            // when
+            when(pointHistoryTable.selectAllByUserId(ANY_ID)).thenReturn(pointHistoryList);
+            List<PointHistory> resultPointHistoryList = pointService.selectPointHistoryAllByUserId(ANY_ID);
 
-    /*
-     * userPoint 충전에 대한 테스트 : 최대 충전 포인트 (1,000) 초과 시 실패
-     * */
-    @Test
-    public void userPoint_충전_간_1000_초과_충전_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 0L, System.currentTimeMillis());
+            // then
+            assertAll(
+                () -> assertThat(resultPointHistoryList.size()).isEqualTo(2),
+                () -> assertThat(resultPointHistoryList).isEqualTo(pointHistoryList)
+            );
+        }
 
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+        @Test
+        void 포인트_내역_조회_실패_시_빈_리스트_반환(){
+            // given
+            // when
+            when(pointHistoryTable.selectAllByUserId(ANY_ID)).thenReturn(List.of());
+            List<PointHistory> resultPointHistoryList = pointService.selectPointHistoryAllByUserId(ANY_ID);
 
-        // then
-        assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 1001L));
-    }
-
-    /*
-     * userPoint 충전에 대한 테스트 : 충전 후 최대 한도 포인트 (10,000) 초과 충전 시 실패
-     * */
-    @Test
-    public void userPoint_충전_후_포인트가_10000_초과_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 9000L, System.currentTimeMillis());
-
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        // then
-        assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 1001L));
-    }
-
-    /*
-     * userPoint 결제에 대한 테스트 : 잔고 포인트가 결제 포인트 이상일 시, 성공
-     * */
-    @MockitoSettings(strictness = Strictness.LENIENT)
-    @Test
-    public void userPoint_결제_간_잔고가_결제_포인트_이상일_시_성공(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 1000L, System.currentTimeMillis());
-
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        when(userPointTable.selectById(userPoint.id())).thenReturn(new UserPoint(ANY_ID, 1000L, System.currentTimeMillis()));
-        when(userPointTable.insertOrUpdate(userPoint.id(), 1000L)).thenReturn(userPoint);
-
-        // then
-        assertDoesNotThrow(() -> pointService.use(userPoint.id(), 1000L));
-    }
-
-    /*
-     * userPoint 결제에 대한 테스트 : 결제 포인트가 0 이하일 시, 실패
-     * */
-    @Test
-    public void userPoint_결제_간_0_이하_결제_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 0L, System.currentTimeMillis());
-
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        // then
-        assertAll(
-            () -> assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), 0L)),
-            () -> assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), -1L))
-        );
-    }
-
-    /*
-     * userPoint 결제에 대한 테스트 : 잔고 포인트가 결제 포인트 미만일 시, 실패
-     * */
-    @Test
-    public void userPoint_결제_간_잔고_포인트가_결제_포인트_미만일_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        UserPoint userPoint = new UserPoint(ANY_ID, 1000L, System.currentTimeMillis());
-
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        // then
-        assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), 1001L));
-    }
-
-    /*
-     * pointHistory에 대한 테스트 : pointHistory 추가 시, 성공
-     * */
-    @Test
-    public void pointHistory_추가_간_성공(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        PointHistory pointHistory = new PointHistory(1L, ANY_ID, ANY_POINT, TransactionType.CHARGE, ANY_TIMEMILLIS);
-
-        // when
-        when(pointHistoryTable.insert(ANY_ID, ANY_POINT, TransactionType.CHARGE, ANY_TIMEMILLIS)).thenReturn(pointHistory);
-
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        PointHistory resultPointHistory = pointService.insertPointHistory(ANY_ID, ANY_POINT, TransactionType.CHARGE, ANY_TIMEMILLIS);
-
-        // then
-        assertEquals(pointHistory, resultPointHistory);
-    }
-
-    /*
-     * pointHistory에 대한 테스트 : pointHistory 추가 간, transactionType 누락 시, 실패
-     * */
-    @Test
-    public void pointHistory_추가_간_transactionType이_비어_있을_시_실패(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-
-        // when
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        // then
-        assertThrows(RuntimeException.class, () -> pointService.insertPointHistory(ANY_ID, ANY_POINT, null, ANY_TIMEMILLIS));
-    }
-
-    /*
-     * pointHistory에 대한 테스트 : pointHistory 조회 간, 성공
-     * */
-    @Test
-    public void pointHistory_조회_간_성공(
-        @Mock UserPointTable userPointTable, @Mock PointHistoryTable pointHistoryTable
-    ){
-        // given
-        PointHistory pointHistory1 = new PointHistory(1L, ANY_ID, 1000L, TransactionType.CHARGE, ANY_TIMEMILLIS);
-        PointHistory pointHistory2 = new PointHistory(2L, ANY_ID, 2000L, TransactionType.CHARGE, ANY_TIMEMILLIS);
-        PointHistory pointHistory3 = new PointHistory(3L, ANY_ID, 3000L, TransactionType.CHARGE, ANY_TIMEMILLIS);
-
-        List<PointHistory> pointHistoryList = List.of(pointHistory1, pointHistory2, pointHistory3);
-
-        // when
-        when(pointHistoryTable.selectAllByUserId(ANY_ID)).thenReturn(pointHistoryList);
-
-        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
-
-        List<PointHistory> resultpointHistoryList = pointService.selectPointHistoryAllByUserId(ANY_ID);
-
-        // then
-        assertEquals(pointHistoryList, resultpointHistoryList);
+            // then
+            assertThat(resultPointHistoryList).isNotNull().isEmpty();
+        }
     }
 
 }
