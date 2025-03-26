@@ -52,4 +52,35 @@ public class UserPointTest {
 
     }
 
+    @Nested
+    class 포인트_사용{
+
+        @Test
+        void 포인트_사용_성공(){
+            UserPoint resultPoint = userPoint.use(100L);
+            assertThat(resultPoint.point()).isEqualTo(900L);
+        }
+
+        @Test
+        void 포인트_충전_금액_0일시_RunTimeException_리턴(){
+            assertThatThrownBy(() -> userPoint.use(0L)).isInstanceOf(RuntimeException.class);
+        }
+
+        @Test
+        void 포인트_사용_금액_음수일시_RunTimeException_리턴(){
+            assertThatThrownBy(() -> userPoint.use(-1L)).isInstanceOf(RuntimeException.class);
+        }
+
+        @Test
+        void 포인트_사용_금액_1일시_성공(){
+            UserPoint resultPoint = userPoint.use(1L);
+            assertThat(resultPoint.point()).isEqualTo(999L);
+        }
+
+        @Test
+        void 포인트_사용_간_보유금액보다_많을시_RunTimeException_리턴(){
+            assertThatThrownBy(() -> userPoint.use(1001L)).isInstanceOf(RuntimeException.class);
+        }
+    }
+
 }
