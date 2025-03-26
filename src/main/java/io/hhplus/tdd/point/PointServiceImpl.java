@@ -81,7 +81,7 @@ public class PointServiceImpl implements PointService {
         if(point <= 0L) throw new IllegalArgumentException("포인트는 최소 1부터 사용할 수 있습니다.");
         if(currentPoint - point < 0L) throw new IllegalArgumentException("보유 중인 포인트보다 많은 포인트는 사용할 수 없습니다.");
 
-        UserPoint result = userPointTable.insertOrUpdate(id, point);
+        UserPoint result = userPointTable.insertOrUpdate(id, currentPoint - point);
 
         pointHistoryTable.insert(id, point, TransactionType.USE, System.currentTimeMillis());
 
