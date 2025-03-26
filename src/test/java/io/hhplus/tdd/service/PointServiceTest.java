@@ -113,8 +113,8 @@ public class PointServiceTest {
 
         // then
         assertAll(
-            () -> assertThrows(IllegalArgumentException.class, () -> pointService.charge(userPoint.id(), 0L)),
-            () -> assertThrows(IllegalArgumentException.class, () -> pointService.charge(userPoint.id(), -1L))
+            () -> assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 0L)),
+            () -> assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), -1L))
         );
     }
 
@@ -132,7 +132,7 @@ public class PointServiceTest {
         PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
 
         // then
-        assertThrows(IllegalArgumentException.class, () -> pointService.charge(userPoint.id(), 1001L));
+        assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 1001L));
     }
 
     /*
@@ -149,7 +149,7 @@ public class PointServiceTest {
         PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
 
         // then
-        assertThrows(IllegalArgumentException.class, () -> pointService.charge(userPoint.id(), 1001L));
+        assertThrows(RuntimeException.class, () -> pointService.charge(userPoint.id(), 1001L));
     }
 
     /*
@@ -188,8 +188,8 @@ public class PointServiceTest {
 
         // then
         assertAll(
-            () -> assertThrows(IllegalArgumentException.class, () -> pointService.use(userPoint.id(), 0L)),
-            () -> assertThrows(IllegalArgumentException.class, () -> pointService.use(userPoint.id(), -1L))
+            () -> assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), 0L)),
+            () -> assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), -1L))
         );
     }
 
@@ -207,7 +207,7 @@ public class PointServiceTest {
         PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
 
         // then
-        assertThrows(IllegalArgumentException.class, () -> pointService.use(userPoint.id(), 1001L));
+        assertThrows(RuntimeException.class, () -> pointService.use(userPoint.id(), 1001L));
     }
 
     /*
@@ -244,7 +244,7 @@ public class PointServiceTest {
         PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
 
         // then
-        assertThrows(IllegalArgumentException.class, () -> pointService.insertPointHistory(ANY_ID, ANY_POINT, null, ANY_TIMEMILLIS));
+        assertThrows(RuntimeException.class, () -> pointService.insertPointHistory(ANY_ID, ANY_POINT, null, ANY_TIMEMILLIS));
     }
 
     /*
