@@ -1,5 +1,7 @@
 package io.hhplus.tdd;
 
+import io.hhplus.tdd.exception.ExceededMaxPointException;
+import io.hhplus.tdd.exception.InvalidPointException;
 import io.hhplus.tdd.point.UserPoint;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,12 +33,12 @@ public class UserPointTest {
 
         @Test
         void 포인트_충전_금액_0일시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.charge(0L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.charge(0L)).isInstanceOf(InvalidPointException.class);
         }
 
         @Test
         void 포인트_충전_금액_음수일시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.charge(-1L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.charge(-1L)).isInstanceOf(InvalidPointException.class);
         }
 
         @Test
@@ -47,7 +49,7 @@ public class UserPointTest {
 
         @Test
         void 포인트_충전_한도_초과시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.charge(9001L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.charge(9001L)).isInstanceOf(ExceededMaxPointException.class);
         }
 
     }
@@ -63,12 +65,12 @@ public class UserPointTest {
 
         @Test
         void 포인트_충전_금액_0일시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.use(0L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.use(0L)).isInstanceOf(InvalidPointException.class);
         }
 
         @Test
         void 포인트_사용_금액_음수일시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.use(-1L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.use(-1L)).isInstanceOf(InvalidPointException.class);
         }
 
         @Test
@@ -79,7 +81,7 @@ public class UserPointTest {
 
         @Test
         void 포인트_사용_간_보유금액보다_많을시_RunTimeException_리턴(){
-            assertThatThrownBy(() -> userPoint.use(1001L)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> userPoint.use(1001L)).isInstanceOf(ExceededMaxPointException.class);
         }
     }
 
